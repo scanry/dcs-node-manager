@@ -1,11 +1,12 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <groupId>six</groupId>
-  <artifactId>dcsnodeManager</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <name>dcsnodeManager</name>
-  <description>distributed node manager</description>
-  <properties>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>six</groupId>
+	<artifactId>dcsnodeManager</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>dcsnodeManager</name>
+	<description>distributed node manager</description>
+	<properties>
 		<java.version>1.8</java.version>
 		<encoding>UTF-8</encoding>
 		<slf4j>1.7.21</slf4j>
@@ -18,8 +19,15 @@
 		<netty.version>4.1.9.Final</netty.version>
 		<zookeeper>3.4.8</zookeeper>
 		<curator>2.12.0</curator>
+		<lombok>1.16.18</lombok>
 	</properties>
 	<dependencies>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok}</version>
+			<scope>provided</scope>
+		</dependency>
 		<dependency>
 			<groupId>commons-codec</groupId>
 			<artifactId>commons-codec</artifactId>
