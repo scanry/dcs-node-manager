@@ -7,14 +7,17 @@ import com.six.dcsnodeManager.Node;
 import com.six.dcsnodeManager.NodeEvent;
 import com.six.dcsnodeManager.NodeResource;
 
+import six.com.rpc.AsyCallback;
+
 /**   
 * @author liusong  
 * @date   2017年7月31日 
 * @email  359852326@qq.com 
 * 节点服务接口
 */
-public interface NodeService {
+public interface DcsNodeManager {
 
+	String getAppName();
 	/**
 	 * 获取集群名称
 	 * @return 当前集群名称，单机环境下返回默认名称
@@ -31,7 +34,12 @@ public interface NodeService {
 	 * 返回当前集群主节点
 	 * @return 当前集群主节点
 	 */
-	Node getMasterNode();
+	Node getMaster();
+	
+	boolean isMaster();
+	
+	
+	void start();
 	
 	/**
 	 * 申请指定nodeResourcesNums 可用节点资源
@@ -61,6 +69,14 @@ public interface NodeService {
 	void registerNodeEvent(NodeEvent NodeEvent,NodeEventWatcher nodeEventWatcher);
 	
 	
+	
+	/**
+	 * 通过path获取集群缓存
+	 * @param path
+	 * @return 返回可用的集群缓存实例
+	 */
+	ClusterCache newClusterCache(String path);
+	
 	/**
 	 * 获取指定node上的指定异步服务(clz),支持成功调用回调
 	 * @param node   指定节点
@@ -84,4 +100,6 @@ public interface NodeService {
 	 * @return 可重入锁
 	 */
 	Lock newLock(String stamp);
+	
+	void shutdown();
 }

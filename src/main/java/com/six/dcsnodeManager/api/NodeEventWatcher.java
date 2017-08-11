@@ -7,5 +7,5 @@ package com.six.dcsnodeManager.api;
 @FunctionalInterface
 public interface NodeEventWatcher {
 
-	void process();
+	void process(String eventNodeName);
 }

@@ -2,9 +2,9 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>six</groupId>
-	<artifactId>dcsnodeManager</artifactId>
+	<artifactId>dcs-node-manager</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>dcsnodeManager</name>
+	<name>dcs-node-manager</name>
 	<description>distributed node manager</description>
 	<properties>
 		<java.version>1.8</java.version>
@@ -22,6 +22,11 @@
 		<lombok>1.16.18</lombok>
 	</properties>
 	<dependencies>
+		<dependency>
+			<groupId>six</groupId>
+			<artifactId>rpc</artifactId>
+			<version>1.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>

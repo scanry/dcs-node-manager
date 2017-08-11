@@ -1,9 +1,16 @@
 package com.six.dcsnodeManager;
 
+import java.io.Serializable;
+
 import lombok.Data;
 
 @Data
-public class Node {
+public class Node implements Serializable{
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -2889533327371829957L;
 
 	/**节点名称**/
 	private String name;

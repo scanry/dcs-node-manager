@@ -1,6 +1,9 @@
 package com.six.dcsnodeManager.api;
 
+import java.util.List;
+
 import com.six.dcsnodeManager.Node;
+import com.six.dcsnodeManager.NodeEvent;
 
 /**   
 * @author liusong  
@@ -9,11 +12,17 @@ import com.six.dcsnodeManager.Node;
 */
 public interface NodeRegister {
 
+	Node getMaster();
+	
+	List<Node> getSlaveNodes();
+	
 	void registerMaster(Node master);
 	
-	void listenMaster();
+	void listenMaster(String masterName);
 	
 	void registerSlave(Node slave);
 	
-	void listenSlaves();
+	void listenSlave(String slaveName);
+	
+	void registerNodeEvent(NodeEvent NodeEvent,NodeEventWatcher nodeEventWatcher);
 }

@@ -6,7 +6,7 @@ package com.six.dcsnodeManager.api;
 */
 public class NodeServiceFactory {
 
-	public static NodeService newNodeService(){
+	public static DcsNodeManager newNodeService(){
 		return null;
 	}
 }
