@@ -1,5 +1,6 @@
 package com.six.dcsnodeManager;
 
+import com.six.dcsnodeManager.api.DcsNodeManager;
 import com.six.dcsnodeManager.api.impl.ZkDcsNodeManager;
 
 /**   
@@ -18,11 +19,18 @@ public class ZkDcsNodeManager_1Test {
 		masterNode.setName("test_1");
 		masterNode.setIp("127.0.0.1");
 		masterNode.setTrafficPort(8181);
-		ZkDcsNodeManager masterNodeManager=new ZkDcsNodeManager(appName, clusterName, masterNode, keepliveInterval, zkConnection);
-		masterNodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE,missSlaveName->{
+		DcsNodeManager nodeManager=new ZkDcsNodeManager(appName, clusterName, masterNode, keepliveInterval, zkConnection);
+		nodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE,missSlaveName->{
 			System.out.println("miss slave:"+missSlaveName);
 		});
-		masterNodeManager.start();
+		nodeManager.registerNodeEvent(NodeEvent.MISS_MASTER,missMasterName->{
+			System.out.println("miss master:"+missMasterName);
+		});
+		nodeManager.registerNodeEvent(NodeEvent.BECOME_MASTER,master->{
+			System.out.println("成为主节点:"+master);
+		});
+		nodeManager.start();
+		System.out.println("是否为主节点:"+nodeManager.isMaster());
 		Object wait=new ZkDcsNodeManager_1Test();
 		synchronized (wait) {
 			wait.wait();

@@ -12,17 +12,17 @@ import com.six.dcsnodeManager.NodeEvent;
 */
 public interface NodeRegister {
 
+	void electionMaster();
+	
+	void register(Node node);
+	
+	Node getNode(String nodeName);
+	
 	Node getMaster();
 	
 	List<Node> getSlaveNodes();
 	
-	void registerMaster(Node master);
-	
-	void listenMaster(String masterName);
-	
-	void registerSlave(Node slave);
-	
-	void listenSlave(String slaveName);
+	void listenNode(String nodeName);
 	
 	void registerNodeEvent(NodeEvent NodeEvent,NodeEventWatcher nodeEventWatcher);
 }

@@ -44,21 +44,12 @@ public class CuratorFrameworkUtils {
 						.forPath(zkPathHelper.getClusterPath());
 			}
 			/**
-			 * 初始化master node节点目录
+			 * 初始化 node节点目录
 			 */
-			stat = curatorFramework.checkExists().forPath(zkPathHelper.getMasterNodesPath());
+			stat = curatorFramework.checkExists().forPath(zkPathHelper.getNodesPath());
 			if (null == stat) {
 				curatorFramework.create().withMode(CreateMode.PERSISTENT)
-						.forPath(zkPathHelper.getMasterNodesPath());
-			}
-
-			/**
-			 * 初始化worker node目录
-			 */
-			stat = curatorFramework.checkExists().forPath(zkPathHelper.getSlaveNodesPath());
-			if (null == stat) {
-				curatorFramework.create().withMode(CreateMode.PERSISTENT)
-						.forPath(zkPathHelper.getSlaveNodesPath());
+						.forPath(zkPathHelper.getNodesPath());
 			}
 
 			/**

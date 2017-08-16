@@ -20,7 +20,17 @@ public class ZkDcsNodeManager_2Test {
 		masterNode.setIp("127.0.0.1");
 		masterNode.setTrafficPort(8182);
 		ZkDcsNodeManager masterNodeManager=new ZkDcsNodeManager(appName, clusterName, masterNode, keepliveInterval, zkConnection);
+		masterNodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE,missSlaveName->{
+			System.out.println("miss slave:"+missSlaveName);
+		});
+		masterNodeManager.registerNodeEvent(NodeEvent.MISS_MASTER,missSlaveName->{
+			System.out.println("miss master:"+missSlaveName);
+		});
+		masterNodeManager.registerNodeEvent(NodeEvent.BECOME_MASTER,missSlaveName->{
+			System.out.println("成为主节点:"+missSlaveName);
+		});
 		masterNodeManager.start();
+		System.out.println("是否为主节点:"+masterNodeManager.isMaster());
 		Object wait=new ZkDcsNodeManager_2Test();
 		synchronized (wait) {
 			wait.wait(2000);

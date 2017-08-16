@@ -3,11 +3,16 @@ package com.six.dcsnodeManager.api.impl;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.RetrySleeper;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.leader.LeaderSelector;
+import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
+import org.apache.curator.framework.recipes.leader.Participant;
 import org.apache.curator.framework.recipes.locks.InterProcessReadWriteLock;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.WatchedEvent;
@@ -40,8 +45,6 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 
 	final static Logger log = LoggerFactory.getLogger(ZkDcsNodeManager.class);
 
-	private final static String ELECTION_STAMP="election";
-	
 	private CuratorFramework zkClient;
 
 	private ZkNodeRegister zkNodeRegister;
@@ -51,10 +54,10 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 	private RpcServer rpcServer;
 
 	private RpcClient rpcClient;
-	
-	private Set<NodeEventWatcher> missMasterEvents=new HashSet<>();
-	private Set<NodeEventWatcher> missSlaveEvents=new HashSet<>();
-	private Set<NodeEventWatcher> bbecomeMasterEvents=new HashSet<>();
+
+	private Set<NodeEventWatcher> missMasterEvents = new HashSet<>();
+	private Set<NodeEventWatcher> missSlaveEvents = new HashSet<>();
+	private Set<NodeEventWatcher> bbecomeMasterEvents = new HashSet<>();
 
 	public ZkDcsNodeManager(String appName, String clusterName, Node currentNode, long keepliveInterval,
 			String zkConnection) {
@@ -71,7 +74,6 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 		this.zkNodeRegister = new ZkNodeRegister();
 	}
 
-
 	@Override
 	protected NodeRegister getNodeRegister() {
 		return zkNodeRegister;
@@ -79,7 +81,7 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 
 	@Override
 	public ClusterCache newClusterCache(String path) {
-		//String cachePath = zkPathHelper.getClusterCachePath(path);
+		// String cachePath = zkPathHelper.getClusterCachePath(path);
 		return null;
 	}
 
@@ -94,37 +96,8 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 	}
 
 	@Override
-	protected Node electionMaster() {
-		Node master=null;
-		Lock electionlock=newLock(ELECTION_STAMP);
-		try{
-			electionlock.lock();
-			Node existNode=getMaster();
-			if(null==existNode||getCurrentNode().equals(existNode)){
-				getCurrentNode().setStatus(NodeStatus.MASTER);
-				updateSelfToRegister();
-			}else{
-				getCurrentNode().setStatus(NodeStatus.SLAVE);
-				updateSelfToRegister();
-				NodeProtocol npl=loolup(existNode, NodeProtocol.class);
-				npl.reportToMaster(getCurrentNode().getName());
-				getNodeRegister().listenMaster(existNode.getName());
-			}		
-		}catch (Exception e) {
-			log.error("",e);
-		}finally {
-			electionlock.unlock();
-		}
-		return master;
-	}
-
-	@Override
 	protected void updateSelfToRegister() {
-		if (NodeStatus.MASTER == getCurrentNode().getStatus()) {
-			getNodeRegister().registerMaster(getCurrentNode());
-		} else {
-			getNodeRegister().registerSlave(getCurrentNode());
-		}
+		getNodeRegister().register(getCurrentNode());
 	}
 
 	@Override
@@ -135,8 +108,7 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 	@Override
 	public Lock newLock(String stamp) {
 		String path = zkPathHelper.getClusterLockPath(stamp);
-		final InterProcessReadWriteLock interProcessReadWriteLock = new InterProcessReadWriteLock(zkClient,
-				path);
+		final InterProcessReadWriteLock interProcessReadWriteLock = new InterProcessReadWriteLock(zkClient, path);
 		return new Lock() {
 			@Override
 			public void unlock() {
@@ -146,6 +118,7 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 					throw new RuntimeException(e);
 				}
 			}
+
 			@Override
 			public void lock() {
 				try {
@@ -167,150 +140,205 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 	protected RpcClient getRpcCilent() {
 		return rpcClient;
 	}
-	
-	class ZkNodeRegister implements NodeRegister{
+
+	class ZkNodeRegister implements NodeRegister {
+
+		private final CountDownLatch leaderLatch = new CountDownLatch(1);
+		private LeaderSelector leaderSelector;
+		private String masterName;
+
+		ZkNodeRegister() {
+			register(getCurrentNode());
+			leaderSelector = new LeaderSelector(zkClient, zkPathHelper.getClusterElectionPath(),
+					new LeaderSelectorListenerAdapter() {
+						@Override
+						public void takeLeadership(final CuratorFramework client) throws Exception {
+							leaderLatch.await();
+						}
+					});
+			leaderSelector.autoRequeue();
+			leaderSelector.setId(getCurrentNode().getName());
+			leaderSelector.start();
+		}
+
 		@Override
-		public Node getMaster(){
-			String mastersPath = zkPathHelper.getMasterNodesPath();
+		public synchronized void electionMaster() {
+			while (true) {
+				try {
+					Participant masterParticipant = leaderSelector.getLeader();
+					if (null != masterParticipant && masterParticipant.isLeader()
+							&& StringUtils.isNotBlank(masterName = masterParticipant.getId())) {
+						Node masterNode = getNode(masterName);
+						if (!StringUtils.equals(masterName, getCurrentNode().getName())) {
+							getCurrentNode().setStatus(NodeStatus.SLAVE);
+							NodeProtocol npl = loolup(masterNode, NodeProtocol.class);
+							npl.reportToMaster(getCurrentNode().getName());
+							getNodeRegister().listenNode(masterNode.getName());
+						} else {
+							getCurrentNode().setStatus(NodeStatus.MASTER);
+							updateSelfToRegister();
+							for (NodeEventWatcher watcher : bbecomeMasterEvents) {
+								watcher.process(masterName);
+							}
+						}
+						break;
+					}
+					Thread.sleep(1000);
+				} catch (Exception e) {
+				}
+			}
+		}
+
+		@Override
+		public void register(Node node) {
+			String nodePath = zkPathHelper.getNodePath(node.getName());
+			register(nodePath, node);
+		}
+
+		@Override
+		public Node getNode(String nodeName) {
+			if (StringUtils.isNotBlank(nodeName)) {
+				String nodePath = zkPathHelper.getNodePath(nodeName);
+				try {
+					byte[] data = zkClient.getData().forPath(nodePath);
+					return SerializationUtils.deserialize(data);
+				} catch (Exception e) {
+					log.error("get node[" + nodeName + "] err", e);
+				}
+			}
+			return null;
+		}
+		
+		@Override
+		public Node getMaster() {
+			String masterPath = zkPathHelper.getNodePath(masterName);
 			try {
-				List<String> masterPathList = zkClient.getChildren().forPath(mastersPath);
-				if (null != masterPathList && masterPathList.size() == 1) {
-					String masterPath = masterPathList.get(0);
-					masterPath = zkPathHelper.getMasterNodePath(masterPath);
-					byte[] data = zkClient.getData().forPath(masterPath);
+				byte[] data = zkClient.getData().forPath(masterPath);
+				return SerializationUtils.deserialize(data);
+			} catch (Exception e) {
+				log.error("get master[" + masterName + "] err", e);
+			}
+			return null;
+		}
+
+		@Override
+		public List<Node> getSlaveNodes() {
+			String nodesPath = zkPathHelper.getNodesPath();
+			try {
+				List<String> children = zkClient.getChildren().forPath(nodesPath);
+				String nodePath = null;
+				for (String nodeName : children) {
+					nodePath = zkPathHelper.getNodePath(nodeName);
+					byte[] data = zkClient.getData().forPath(nodePath);
 					return SerializationUtils.deserialize(data);
 				}
 			} catch (Exception e) {
-				e.printStackTrace();
+				log.error("get slaveNodes err", e);
 			}
 			return null;
 		}
 		
-		@Override
-		public List<Node> getSlaveNodes(){
-			return null;
-		}
-		
-		@Override
-		public void registerMaster(Node master) {
-			String masterPath=zkPathHelper.getMasterNodePath(master.getName());
-			register(masterPath, master);
-		}
 
 		@Override
-		public void listenMaster(String masterName) {
-			String masterPath=zkPathHelper.getMasterNodePath(masterName);
+		public void listenNode(String nodeName) {
+			String masterPath = zkPathHelper.getNodePath(nodeName);
 			try {
 				zkClient.checkExists().usingWatcher(new Watcher() {
 					@Override
 					public void process(WatchedEvent event) {
-						String path=event.getPath();
+						String path = event.getPath();
+						String missNodeName = zkPathHelper.getNodeName(path);
 						if (EventType.NodeDeleted == event.getType()) {
-							getCurrentNode().setStatus(NodeStatus.LOOKING);
-							String masterName=path;
-							for(NodeEventWatcher watcher:missMasterEvents){
-								watcher.process(masterName);
+							if (StringUtils.equals(masterName, missNodeName)) {
+								doMissMaster(missNodeName);
+							} else {
+								doMissSlave(missNodeName);
 							}
-							Node master=electionMaster();
-							if(isMaster()){
-								for(NodeEventWatcher watcher:bbecomeMasterEvents){
-									watcher.process(master.getName());
-								}
-							}
-						}else {
+						} else {
 							try {
 								zkClient.checkExists().usingWatcher(this);
 							} catch (Exception e) {
-								log.error("watch path[" + path + "] failed",e);
+								log.error("watch path[" + path + "] failed", e);
 							}
 						}
-					}}).forPath(masterPath);
+					}
+				}).forPath(masterPath);
 			} catch (Exception e) {
-				log.error("watch path[" + masterPath + "] failed",e);
+				log.error("watch path[" + masterPath + "] failed", e);
 			}
 		}
-		
 
-		@Override
-		public void registerSlave(Node slave) {
-			String slavePath=zkPathHelper.getSlaveNodePath(slave.getName());
-			register(slavePath, slave);
+		private void doMissMaster(String masterName) {
+			getCurrentNode().setStatus(NodeStatus.LOOKING);
+			for (NodeEventWatcher watcher : missMasterEvents) {
+				watcher.process(masterName);
+			}
+			electionMaster();
+
 		}
 
-		@Override
-		public void listenSlave(String slaveName) {
-			String slavePath=zkPathHelper.getSlaveNodePath(slaveName);
-			try {
-				zkClient.checkExists().usingWatcher(new Watcher() {
-					@Override
-					public void process(WatchedEvent event) {
-						String path=event.getPath();
-						if (EventType.NodeDeleted == event.getType()) {
-							String slaveName=path;
-							for(NodeEventWatcher watcher:missSlaveEvents){
-								watcher.process(slaveName);
-							}
-							
-						}else {
-							try {
-								zkClient.checkExists().usingWatcher(this);
-							} catch (Exception e) {
-								log.error("watch path[" + path + "] failed",e);
-							}
-						}
-					}}).forPath(slavePath);
-			} catch (Exception e) {
-				log.error("watch path[" + slavePath + "] failed",e);
+		private void doMissSlave(String slaveName) {
+			for (NodeEventWatcher watcher : missSlaveEvents) {
+				watcher.process(slaveName);
 			}
 		}
-		
+
+
 		@Override
-		public void registerNodeEvent(NodeEvent nodeEvent,NodeEventWatcher nodeEventWatcher){
-			if(NodeEvent.BECOME_MASTER==nodeEvent){
+		public void registerNodeEvent(NodeEvent nodeEvent, NodeEventWatcher nodeEventWatcher) {
+			if (NodeEvent.BECOME_MASTER == nodeEvent) {
 				bbecomeMasterEvents.add(nodeEventWatcher);
-			}else if(NodeEvent.MISS_MASTER==nodeEvent){
+			} else if (NodeEvent.MISS_MASTER == nodeEvent) {
 				missMasterEvents.add(nodeEventWatcher);
-			}else if(NodeEvent.MISS_SLAVE==nodeEvent){
+			} else if (NodeEvent.MISS_SLAVE == nodeEvent) {
 				missSlaveEvents.add(nodeEventWatcher);
-			}	
+			}
 		}
-		
-		private void register(String path,Node node) {
-			boolean isExist=false;
+
+		private void register(String path, Node node) {
+			boolean isExist = false;
 			try {
-				if(null!=zkClient.checkExists().forPath(path)){
-					isExist=true;
+				if (null != zkClient.checkExists().forPath(path)) {
+					isExist = true;
 				}
 			} catch (Exception e) {
-				e.printStackTrace();
+				log.error("exist node[" + path + "] err", e);
 			}
-			byte[] data=SerializationUtils.serialize(node);
-			if(isExist){
+			byte[] data = SerializationUtils.serialize(node);
+			if (isExist) {
 				try {
 					zkClient.setData().forPath(path, data);
 				} catch (Exception e) {
-					e.printStackTrace();
+					log.error("set node[" + path + "] data err", e);
 				}
-			}else{
+			} else {
 				try {
 					zkClient.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(path, data);
 				} catch (Exception e) {
-					e.printStackTrace();
+					log.error("create node[" + path + "] err", e);
 				}
 			}
-		
+		}
+
+		void close() {
+			leaderLatch.countDown();
+			try {
+				leaderSelector.close();
+			} catch (Exception e) {
+				log.error("close leaderSelector err", e);
+			}
 		}
 	}
 
 	@Override
 	protected void doShutdown() {
-		if(null!=rpcClient){
+		if (null != rpcClient) {
 			rpcClient.shutdown();
 		}
-		if(null!=rpcServer){
+		if (null != rpcServer) {
 			rpcServer.shutdown();
 		}
-		if(null!=zkClient){
+		if (null != zkClient) {
 			zkClient.close();
 		}
 	}

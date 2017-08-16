@@ -82,17 +82,16 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 			public void reportToMaster(String slaveName) {
 				if (isMaster()) {
 					log.info("receive report from " + slaveName);
-					getNodeRegister().listenSlave(slaveName);
+					getNodeRegister().listenNode(slaveName);
 				}
 			}
-
 			@Override
 			public Node getNewestNode() {
 				return getCurrentNode();
 			}
 		};
 		getRpcServer().register(NodeProtocol.class, selfNodeProtocol);
-		electionMaster();
+		getNodeRegister().electionMaster();
 		keepliveThread.start();
 	}
 
@@ -145,8 +144,6 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 	}
 
 	protected abstract NodeRegister getNodeRegister();
-
-	protected abstract Node electionMaster();
 
 	protected abstract void updateSelfToRegister();
 
