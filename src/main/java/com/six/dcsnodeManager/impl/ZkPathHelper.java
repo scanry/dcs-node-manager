@@ -1,4 +1,4 @@
-package com.six.dcsnodeManager.api.impl;
+package com.six.dcsnodeManager.impl;
 
 import java.util.Objects;
 

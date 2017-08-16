@@ -1,6 +1,6 @@
 package com.six.dcsnodeManager;
 
-import com.six.dcsnodeManager.api.impl.ZkDcsNodeManager;
+import com.six.dcsnodeManager.impl.ZkDcsNodeManager;
 
 /**   
 * @author liusong  
@@ -33,7 +33,7 @@ public class ZkDcsNodeManager_2Test {
 		System.out.println("是否为主节点:"+masterNodeManager.isMaster());
 		Object wait=new ZkDcsNodeManager_2Test();
 		synchronized (wait) {
-			wait.wait(2000);
+			wait.wait();
 		}
 		masterNodeManager.shutdown();
 	}

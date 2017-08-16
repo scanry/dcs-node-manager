@@ -1,7 +1,8 @@
-package com.six.dcsnodeManager.api.impl;
+package com.six.dcsnodeManager.impl;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import com.six.dcsnodeManager.api.NodeRegister;
 import com.six.dcsnodeManager.api.DcsNodeManager;
 import com.six.dcsnodeManager.exception.IllegalStateNodeException;
 
+import six.com.rpc.AsyCallback;
 import six.com.rpc.RpcClient;
 import six.com.rpc.server.RpcServer;
 
@@ -38,8 +40,10 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 	private Thread keepliveThread;
 
 	private long keepliveInterval;
-	
-	private volatile boolean shutdown;
+
+	private volatile boolean shutdown = true;
+
+	private AtomicBoolean healthy = new AtomicBoolean(false);
 
 	public AbstractDcsNodeManager(String appName, String clusterName, Node currentNode, long keepliveInterval) {
 		Objects.requireNonNull(appName);
@@ -50,8 +54,23 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 		this.currentNode = currentNode;
 		this.keepliveInterval = keepliveInterval;
 		keepliveThread = new Thread(() -> {
-			keeplive();
-		}, "node-keeplive-thread");
+			while (shutdown) {
+				if (!isKeepalive()) {
+					synchronized (healthy) {
+						if (!isKeepalive()) {
+							noHealthy();
+							getCurrentNode().setStatus(NodeStatus.LOOKING);
+							getNodeRegister().electionMaster();
+							isHealthy();
+						}
+					}
+				}
+				try {
+					Thread.sleep(AbstractDcsNodeManager.this.keepliveInterval);
+				} catch (InterruptedException e) {
+				}
+			}
+		}, "node-keepalive-thread");
 		keepliveThread.setDaemon(true);
 	}
 
@@ -67,12 +86,37 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 
 	@Override
 	public Node getCurrentNode() {
+		checkHealthy();
 		return currentNode;
+
 	}
 
 	@Override
-	public synchronized boolean isMaster() {
+	public boolean isMaster() {
+		checkHealthy();
 		return NodeStatus.MASTER == getCurrentNode().getStatus();
+
+	}
+
+	@Override
+	public Node getMaster() {
+		checkHealthy();
+		return getNodeRegister().getMaster();
+
+	}
+
+	@Override
+	public List<Node> getSlaveNode() {
+		checkHealthy();
+		return getNodeRegister().getSlaveNodes();
+
+	}
+
+	@Override
+	public List<Node> getNodes() {
+		checkHealthy();
+		return getNodeRegister().getNodes();
+
 	}
 
 	@Override
@@ -85,6 +129,7 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 					getNodeRegister().listenNode(slaveName);
 				}
 			}
+
 			@Override
 			public Node getNewestNode() {
 				return getCurrentNode();
@@ -92,26 +137,13 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 		};
 		getRpcServer().register(NodeProtocol.class, selfNodeProtocol);
 		getNodeRegister().electionMaster();
+		isHealthy();
 		keepliveThread.start();
 	}
 
-	private void keeplive() {
-		while (shutdown) {
-			updateSelfToRegister();
-			try {
-				Thread.sleep(keepliveInterval);
-			} catch (InterruptedException e) {
-			}
-		}
-	}
-
 	@Override
-	public Node getMaster() {
-		return getNodeRegister().getMaster();
-	}
-
-	@Override
-	public synchronized List<NodeResource> applyNodeResources(int nodeNum, int threadNum) {
+	public List<NodeResource> applyNodeResources(int nodeNum, int threadNum) {
+		checkHealthy();
 		List<NodeResource> freeList = null;
 		if (NodeStatus.MASTER == currentNode.getStatus()) {
 
@@ -121,15 +153,20 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 			throw new IllegalStateNodeException("");
 		}
 		return freeList;
-	}
-
-	@Override
-	public synchronized void lockNodeResources(List<NodeResource> list) {
 
 	}
 
 	@Override
-	public synchronized void returnNodeResources(List<NodeResource> list) {
+	public void lockNodeResources(List<NodeResource> list) {
+		checkHealthy();
+		throw new UnsupportedOperationException();
+
+	}
+
+	@Override
+	public void returnNodeResources(List<NodeResource> list) {
+		checkHealthy();
+		throw new UnsupportedOperationException();
 
 	}
 
@@ -137,23 +174,50 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 	public void registerNodeEvent(NodeEvent NodeEvent, NodeEventWatcher nodeEventWatcher) {
 		getNodeRegister().registerNodeEvent(NodeEvent, nodeEventWatcher);
 	}
-	
-	public final synchronized void shutdown(){
-		shutdown=true;
+
+	@Override
+	public <T> T loolup(Node node, Class<T> clz, AsyCallback asyCallback) {
+		checkHealthy();
+		return getRpcCilent().lookupService(node.getIp(), node.getTrafficPort(), clz, asyCallback);
+
+	}
+
+	@Override
+	public <T> T loolup(Node node, Class<T> clz) {
+		checkHealthy();
+		return getRpcCilent().lookupService(node.getIp(), node.getTrafficPort(), clz);
+
+	}
+
+	public final synchronized void shutdown() {
+		shutdown = true;
 		doShutdown();
 	}
 
-	protected abstract NodeRegister getNodeRegister();
+	void checkHealthy() {
+		if (!healthy.get()) {
+			synchronized (healthy) {
+			}
+		}
+	}
+	
+	void isHealthy(){
+		healthy.set(true);
+	}
+	void noHealthy(){
+		healthy.set(false);
+	}
 
-	protected abstract void updateSelfToRegister();
+	protected abstract boolean isKeepalive();
+
+	protected abstract NodeRegister getNodeRegister();
 
 	protected abstract List<Node> getSlaveNodes();
 
 	protected abstract RpcServer getRpcServer();
 
 	protected abstract RpcClient getRpcCilent();
-	
+
 	protected abstract void doShutdown();
-	
-	
+
 }

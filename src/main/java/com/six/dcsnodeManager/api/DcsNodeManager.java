@@ -36,6 +36,10 @@ public interface DcsNodeManager {
 	 */
 	Node getMaster();
 	
+	List<Node> getSlaveNode();
+	
+	List<Node> getNodes();
+	
 	boolean isMaster();
 	
 	

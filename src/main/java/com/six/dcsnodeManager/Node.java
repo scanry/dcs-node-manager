@@ -26,4 +26,7 @@ public class Node implements Serializable{
 	
 	/**节点间通信端口**/
 	private int trafficPort;
+	
+	/**最后一次keepalive时间**/
+	private long lastKeepaliveTime;
 }

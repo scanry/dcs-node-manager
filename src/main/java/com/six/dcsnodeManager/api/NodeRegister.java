@@ -14,7 +14,7 @@ public interface NodeRegister {
 
 	void electionMaster();
 	
-	void register(Node node);
+	boolean register();
 	
 	Node getNode(String nodeName);
 	
@@ -22,7 +22,11 @@ public interface NodeRegister {
 	
 	List<Node> getSlaveNodes();
 	
+	List<Node> getNodes();
+	
 	void listenNode(String nodeName);
 	
 	void registerNodeEvent(NodeEvent NodeEvent,NodeEventWatcher nodeEventWatcher);
+	
+	void close();
 }

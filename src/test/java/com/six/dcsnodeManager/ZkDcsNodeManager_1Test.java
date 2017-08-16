@@ -1,7 +1,7 @@
 package com.six.dcsnodeManager;
 
 import com.six.dcsnodeManager.api.DcsNodeManager;
-import com.six.dcsnodeManager.api.impl.ZkDcsNodeManager;
+import com.six.dcsnodeManager.impl.ZkDcsNodeManager;
 
 /**   
 * @author liusong  
@@ -31,6 +31,13 @@ public class ZkDcsNodeManager_1Test {
 		});
 		nodeManager.start();
 		System.out.println("是否为主节点:"+nodeManager.isMaster());
+		int nodeNum=10;
+		int threadNum=5;
+		//申请10个节点，每个节点5个线程
+		int i=0;
+		while(i++<3){
+			nodeManager.applyNodeResources(nodeNum, threadNum);
+		}
 		Object wait=new ZkDcsNodeManager_1Test();
 		synchronized (wait) {
 			wait.wait();

@@ -1,4 +1,4 @@
-package com.six.dcsnodeManager.api.impl;
+package com.six.dcsnodeManager.impl;
 
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
