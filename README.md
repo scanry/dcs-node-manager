@@ -2,7 +2,7 @@
 分布式节点资源管理
 
 ---
-###示例代码片段
+### 示例代码片段
 		String appName="crawler";
 		String clusterName="crawler_cluster";
 		long keepliveInterval=2000;
@@ -24,3 +24,4 @@
 		});
 		nodeManager.start();
 		System.out.println("是否为主节点:"+nodeManager.isMaster());
+---
