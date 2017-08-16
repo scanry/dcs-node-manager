@@ -24,4 +24,8 @@
 		});
 		nodeManager.start();
 		System.out.println("是否为主节点:"+nodeManager.isMaster());
+		int nodeNum=10;
+		int threadNum=5;
+		//申请10个节点，每个节点5个线程
+		nodeManager.applyNodeResources(nodeNum, threadNum);
 ---
