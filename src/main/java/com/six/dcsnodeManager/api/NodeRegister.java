@@ -12,13 +12,17 @@ import com.six.dcsnodeManager.NodeEvent;
 */
 public interface NodeRegister {
 
+	String getLocalUUID();
+	
 	void electionMaster();
 	
-	boolean register();
+	void registerOrUpdate();
 	
-	Node getNode(String nodeName);
+	Node getCurrentNode();
 	
 	Node getMaster();
+	
+	Node getNode(String nodeName);
 	
 	List<Node> getSlaveNodes();
 	

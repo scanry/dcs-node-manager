@@ -16,7 +16,9 @@ public interface NodeProtocol {
 	Node getNewestNode();
 	
 	/**
-	 * 从节点向master节点报道
+	 * 向主节点报道并返回主节点的启动uuid
+	 * @param slaveName
+	 * @return
 	 */
-	void reportToMaster(String slaveName);
+	String reportToMaster(String slaveName);
 }

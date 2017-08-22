@@ -88,7 +88,7 @@ public interface DcsNodeManager {
 	 * @param asyCallback  回调操作
 	 * @return  返回一个服务实例
 	 */
-	<T> T loolup(Node node, Class<T> clz, AsyCallback asyCallback);
+	<T> T loolupService(Node node, Class<T> clz, AsyCallback asyCallback);
 
 	/**
 	 * 获取指定node上的指定同步服务(clz)
@@ -96,7 +96,9 @@ public interface DcsNodeManager {
 	 * @param clz  服务class
 	 * @return 返回一个服务实例
 	 */
-	<T> T loolup(Node node, Class<T> clz);
+	<T> T loolupService(Node node, Class<T> clz);
+	
+	void registerService(Class<?> protocol, Object instance);
 	
 	/**
 	 * 通过stamp获取一个可用的可重入锁，单机或分布式锁由环境配置决定

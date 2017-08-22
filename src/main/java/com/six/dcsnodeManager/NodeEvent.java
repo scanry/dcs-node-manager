@@ -5,10 +5,12 @@ package com.six.dcsnodeManager;
 * @email  359852326@qq.com 
 */
 public enum NodeEvent {
+	/**第一个成为主节点事件**/
+	INIT_CLUSTER,
 	/**丢失主节点事件**/
 	MISS_MASTER,
-	/**成为主节点事件**/
-	BECOME_MASTER,
 	/**丢失从节点事件**/
-	MISS_SLAVE
+	MISS_SLAVE,
+	/**选举产生主节点事件**/
+	BECOME_MASTER
 }

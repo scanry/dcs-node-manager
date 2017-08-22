@@ -20,6 +20,8 @@ public class ZkPathHelper {
 	private static final String CLUSTER_LOCK = "lock";
 	/**存放集群选举路径名称**/
 	private static final String ELECTION = "election";
+	/**存放集群启动唯一标示路径名称**/
+	private static final String UUID = "uuid";
 	/**应用名称**/
 	private final String appName;
 	/**应用集群名称**/
@@ -72,6 +74,10 @@ public class ZkPathHelper {
 
 	public String getClusterElectionPath() {
 		return getClusterPath() + "/" + ELECTION;
+	}
+	
+	public String getClusterStartUUIDPath() {
+		return getClusterPath() + "/" + UUID;
 	}
 
 }

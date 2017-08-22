@@ -1,14 +1,13 @@
 package com.six.dcsnodeManager.impl;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.RetrySleeper;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessReadWriteLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.six.dcsnodeManager.Lock;
 import com.six.dcsnodeManager.Node;
@@ -25,9 +24,9 @@ import six.com.rpc.server.RpcServer;
  * @date 2017年8月9日
  * @email 359852326@qq.com
  */
-public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 
-	final static Logger log = LoggerFactory.getLogger(ZkDcsNodeManager.class);
+
+public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 
 	private CuratorFramework zkClient;
 
@@ -40,10 +39,11 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 	private RpcClient rpcClient;
 
 	public ZkDcsNodeManager(String appName, String clusterName, Node currentNode, long keepliveInterval,
-			String zkConnection) {
-		super(appName, clusterName, currentNode, keepliveInterval);
-		rpcServer = new NettyRpcServer(currentNode.getIp(), currentNode.getTrafficPort());
-		rpcClient = new NettyRpcCilent();
+			String zkConnection,int nodeRpcServerThreads,int nodeRpcClientThreads) {
+		super(appName, clusterName,keepliveInterval);
+		Objects.requireNonNull(currentNode);
+		rpcServer = new NettyRpcServer(currentNode.getIp(), currentNode.getTrafficPort(),nodeRpcServerThreads);
+		rpcClient = new NettyRpcCilent(nodeRpcClientThreads);
 		this.zkPathHelper = new ZkPathHelper(appName, clusterName);
 		this.zkClient = CuratorFrameworkUtils.newCuratorFramework(zkConnection, clusterName, new RetryPolicy() {
 			@Override
@@ -54,7 +54,7 @@ public class ZkDcsNodeManager extends AbstractDcsNodeManager {
 				return true;
 			}
 		}, zkPathHelper);
-		this.zkNodeRegister = new ZkNodeRegister(this, zkClient, zkPathHelper);
+		this.zkNodeRegister = new ZkNodeRegister(currentNode,this, zkClient, zkPathHelper);
 	}
 
 	@Override

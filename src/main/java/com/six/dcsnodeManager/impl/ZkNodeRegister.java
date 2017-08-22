@@ -3,6 +3,7 @@ package com.six.dcsnodeManager.impl;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 import org.apache.commons.lang3.SerializationUtils;
@@ -18,7 +19,6 @@ import org.apache.zookeeper.Watcher.Event.EventType;
 
 import com.six.dcsnodeManager.Node;
 import com.six.dcsnodeManager.NodeEvent;
-import com.six.dcsnodeManager.NodeStatus;
 import com.six.dcsnodeManager.api.NodeEventWatcher;
 import com.six.dcsnodeManager.api.NodeProtocol;
 import com.six.dcsnodeManager.api.NodeRegister;
@@ -38,12 +38,17 @@ public class ZkNodeRegister implements NodeRegister{
 	private CuratorFramework zkClient;
 	private ZkPathHelper zkPathHelper;
 	private LeaderSelector leaderSelector;
+	private Node currentNode;
 	private String masterName;
+	private Set<NodeEventWatcher> initCLuserEvents = new HashSet<>();
 	private Set<NodeEventWatcher> missMasterEvents = new HashSet<>();
-	private Set<NodeEventWatcher> missSlaveEvents = new HashSet<>();
-	private Set<NodeEventWatcher> bbecomeMasterEvents = new HashSet<>();
+	private Set<NodeEventWatcher> missSlaveEvents = new HashSet<>();	                            
+	private Set<NodeEventWatcher> becomeMasterEvents = new HashSet<>();
+	private volatile String localUUID=UUID.randomUUID().toString();
+	private static long electionInterval=1000;
 
-	ZkNodeRegister(ZkDcsNodeManager zkDcsNodeManager,CuratorFramework zkClient,ZkPathHelper zkPathHelper) {
+	ZkNodeRegister(Node currentNode,ZkDcsNodeManager zkDcsNodeManager,CuratorFramework zkClient,ZkPathHelper zkPathHelper) {
+		this.currentNode=currentNode;
 		this.zkDcsNodeManager=zkDcsNodeManager;
 		this.zkClient=zkClient;
 		this.zkPathHelper=zkPathHelper;
@@ -55,33 +60,55 @@ public class ZkNodeRegister implements NodeRegister{
 					}
 				});
 		leaderSelector.autoRequeue();
-		leaderSelector.setId(zkDcsNodeManager.getCurrentNode().getName());
+		leaderSelector.setId(currentNode.getName());
 		leaderSelector.start();
 	}
 
 	@Override
+	public String getLocalUUID(){
+		return localUUID;
+	}
+	
+	
+	@Override
 	public synchronized void electionMaster() {
+		getCurrentNode().looking();
+		registerOrUpdate();
 		while (true) {
 			try {
-				register();
 				Participant masterParticipant = leaderSelector.getLeader();
 				if (null != masterParticipant && masterParticipant.isLeader()
 						&& StringUtils.isNotBlank(masterName = masterParticipant.getId())) {
-					Node masterNode = getNode(masterName);
-					if (!StringUtils.equals(masterName, zkDcsNodeManager.getCurrentNode().getName())) {
-						zkDcsNodeManager.getCurrentNode().setStatus(NodeStatus.SLAVE);
-						NodeProtocol npl = zkDcsNodeManager.loolup(masterNode, NodeProtocol.class);
-						npl.reportToMaster(zkDcsNodeManager.getCurrentNode().getName());
+					if (!StringUtils.equals(masterName,currentNode.getName())) {
+						currentNode.slave();
+						Node masterNode = getNode(masterName);
+						NodeProtocol npl = zkDcsNodeManager.loolupService(masterNode, NodeProtocol.class);
+						localUUID=npl.reportToMaster(currentNode.getName());
 						listenNode(masterNode.getName());
-					} else {
-						zkDcsNodeManager.getCurrentNode().setStatus(NodeStatus.MASTER);
-						for (NodeEventWatcher watcher : bbecomeMasterEvents) {
-							watcher.process(masterName);
+					}else{
+						currentNode.master();
+						String UUIDPath=zkPathHelper.getClusterStartUUIDPath();
+						String existUUID=null;
+						byte[] data=zkClient.getData().forPath(UUIDPath);
+						if(null!=data){
+							existUUID=SerializationUtils.deserialize(data);
+						}
+						//如果uuid相等，那么当前集群master是在第一个master挂掉后重新选举的。
+						if(StringUtils.equals(localUUID, existUUID)){
+							for (NodeEventWatcher watcher : becomeMasterEvents) {
+								watcher.process(masterName);
+							}
+						}else{//如果不想等，说明整个集群重新启动
+							zkClient.setData().forPath(UUIDPath,SerializationUtils.serialize(localUUID));
+							for (NodeEventWatcher watcher : initCLuserEvents) {
+								watcher.process(masterName);
+							}
 						}
 					}
+					registerOrUpdate();
 					break;
 				}
-				Thread.sleep(1000);
+				Thread.sleep(electionInterval);
 			} catch (Exception e) {
 				log.error("node["+zkDcsNodeManager.getCurrentNode().getName()+"] launch an election err", e);
 			}
@@ -89,10 +116,9 @@ public class ZkNodeRegister implements NodeRegister{
 	}
 
 	@Override
-	public boolean register() {
-		Node node=zkDcsNodeManager.getCurrentNode();
-		String nodePath = zkPathHelper.getNodePath(node.getName());
-		node.setLastKeepaliveTime(System.currentTimeMillis());
+	public void registerOrUpdate() {
+		String nodePath = zkPathHelper.getNodePath(currentNode.getName());
+		currentNode.setLastKeepaliveTime(System.currentTimeMillis());
 		boolean isExist = false;
 		try {
 			if (null != zkClient.checkExists().forPath(nodePath)) {
@@ -101,25 +127,27 @@ public class ZkNodeRegister implements NodeRegister{
 		} catch (Exception e) {
 			log.error("exist node[" + nodePath + "] err", e);
 		}
-		byte[] data = SerializationUtils.serialize(node);
+		byte[] data = SerializationUtils.serialize(currentNode);
 		if (isExist) {
 			try {
 				zkClient.setData().forPath(nodePath, data);
-				return true;
 			} catch (Exception e) {
 				log.error("set node[" + nodePath + "] data err", e);
 			}
 		} else {
 			try {
 				zkClient.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(nodePath, data);
-				return true;
 			} catch (Exception e) {
 				log.error("create node[" + nodePath + "] err", e);
 			}
 		}
-		return false;
 	}
 
+	@Override
+	public Node getCurrentNode(){
+		return currentNode;
+	}
+	
 	@Override
 	public Node getNode(String nodeName) {
 		if (StringUtils.isNotBlank(nodeName)) {
@@ -212,12 +240,10 @@ public class ZkNodeRegister implements NodeRegister{
 	}
 
 	private void doMissMaster(String masterName) {
-		zkDcsNodeManager.getCurrentNode().setStatus(NodeStatus.LOOKING);
 		for (NodeEventWatcher watcher : missMasterEvents) {
 			watcher.process(masterName);
 		}
 		electionMaster();
-
 	}
 
 	private void doMissSlave(String slaveName) {
@@ -229,8 +255,10 @@ public class ZkNodeRegister implements NodeRegister{
 
 	@Override
 	public void registerNodeEvent(NodeEvent nodeEvent, NodeEventWatcher nodeEventWatcher) {
-		if (NodeEvent.BECOME_MASTER == nodeEvent) {
-			bbecomeMasterEvents.add(nodeEventWatcher);
+		if (NodeEvent.INIT_CLUSTER == nodeEvent) {
+			initCLuserEvents.add(nodeEventWatcher);
+		} else if (NodeEvent.BECOME_MASTER == nodeEvent) {
+			becomeMasterEvents.add(nodeEventWatcher);
 		} else if (NodeEvent.MISS_MASTER == nodeEvent) {
 			missMasterEvents.add(nodeEventWatcher);
 		} else if (NodeEvent.MISS_SLAVE == nodeEvent) {

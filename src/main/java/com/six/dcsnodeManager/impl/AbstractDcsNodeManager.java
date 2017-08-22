@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import com.six.dcsnodeManager.Node;
 import com.six.dcsnodeManager.NodeEvent;
 import com.six.dcsnodeManager.NodeResource;
-import com.six.dcsnodeManager.NodeStatus;
 import com.six.dcsnodeManager.api.NodeEventWatcher;
 import com.six.dcsnodeManager.api.NodeProtocol;
 import com.six.dcsnodeManager.api.NodeRegister;
@@ -35,8 +34,6 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 
 	private String clusterName;
 
-	private Node currentNode;
-
 	private Thread keepliveThread;
 
 	private long keepliveInterval;
@@ -45,21 +42,19 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 
 	private AtomicBoolean healthy = new AtomicBoolean(false);
 
-	public AbstractDcsNodeManager(String appName, String clusterName, Node currentNode, long keepliveInterval) {
+	public AbstractDcsNodeManager(String appName, String clusterName,long keepliveInterval) {
 		Objects.requireNonNull(appName);
 		Objects.requireNonNull(clusterName);
-		Objects.requireNonNull(currentNode);
 		this.appName = appName;
 		this.clusterName = clusterName;
-		this.currentNode = currentNode;
 		this.keepliveInterval = keepliveInterval;
 		keepliveThread = new Thread(() -> {
 			while (shutdown) {
+				//TODO加上与leader的心跳
 				if (!isKeepalive()) {
 					synchronized (healthy) {
 						if (!isKeepalive()) {
 							noHealthy();
-							getCurrentNode().setStatus(NodeStatus.LOOKING);
 							getNodeRegister().electionMaster();
 							isHealthy();
 						}
@@ -87,14 +82,14 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 	@Override
 	public Node getCurrentNode() {
 		checkHealthy();
-		return currentNode;
+		return getNodeRegister().getCurrentNode();
 
 	}
 
 	@Override
 	public boolean isMaster() {
 		checkHealthy();
-		return NodeStatus.MASTER == getCurrentNode().getStatus();
+		return getCurrentNode().isMaster();
 
 	}
 
@@ -121,21 +116,7 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 
 	@Override
 	public void start() {
-		NodeProtocol selfNodeProtocol = new NodeProtocol() {
-			@Override
-			public void reportToMaster(String slaveName) {
-				if (isMaster()) {
-					log.info("receive report from " + slaveName);
-					getNodeRegister().listenNode(slaveName);
-				}
-			}
-
-			@Override
-			public Node getNewestNode() {
-				return getCurrentNode();
-			}
-		};
-		getRpcServer().register(NodeProtocol.class, selfNodeProtocol);
+		getRpcServer().register(NodeProtocol.class, new NodeProtocolImpl(this));
 		getNodeRegister().electionMaster();
 		isHealthy();
 		keepliveThread.start();
@@ -145,9 +126,9 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 	public List<NodeResource> applyNodeResources(int nodeNum, int threadNum) {
 		checkHealthy();
 		List<NodeResource> freeList = null;
-		if (NodeStatus.MASTER == currentNode.getStatus()) {
+		if (getCurrentNode().isMaster()) {
 
-		} else if (NodeStatus.SLAVE == currentNode.getStatus()) {
+		} else if (getCurrentNode().isSlave()) {
 
 		} else {
 			throw new IllegalStateNodeException("");
@@ -176,17 +157,22 @@ public abstract class AbstractDcsNodeManager implements DcsNodeManager {
 	}
 
 	@Override
-	public <T> T loolup(Node node, Class<T> clz, AsyCallback asyCallback) {
+	public <T> T loolupService(Node node, Class<T> clz, AsyCallback asyCallback) {
 		checkHealthy();
 		return getRpcCilent().lookupService(node.getIp(), node.getTrafficPort(), clz, asyCallback);
 
 	}
 
 	@Override
-	public <T> T loolup(Node node, Class<T> clz) {
+	public <T> T loolupService(Node node, Class<T> clz) {
 		checkHealthy();
 		return getRpcCilent().lookupService(node.getIp(), node.getTrafficPort(), clz);
 
+	}
+	
+	@Override
+	public void registerService(Class<?> protocol, Object instance){
+		getRpcServer().register(protocol, instance);
 	}
 
 	public final synchronized void shutdown() {

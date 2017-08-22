@@ -69,6 +69,15 @@ public class CuratorFrameworkUtils {
 				curatorFramework.create().withMode(CreateMode.PERSISTENT)
 						.forPath(zkPathHelper.getClusterLocksPath());
 			}
+			
+			/**
+			 * 初始化集群启动uuid目录
+			 */
+			stat = curatorFramework.checkExists().forPath(zkPathHelper.getClusterStartUUIDPath());
+			if (null == stat) {
+				curatorFramework.create().withMode(CreateMode.PERSISTENT)
+						.forPath(zkPathHelper.getClusterStartUUIDPath());
+			}
 		} catch (Exception e) {
 			throw new RuntimeException("init zooKeeper's persistent path err",e);
 		}

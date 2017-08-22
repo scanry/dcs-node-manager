@@ -19,22 +19,25 @@ public class ZkDcsNodeManager_2Test {
 		masterNode.setName("test_2");
 		masterNode.setIp("127.0.0.1");
 		masterNode.setTrafficPort(8182);
-		ZkDcsNodeManager masterNodeManager=new ZkDcsNodeManager(appName, clusterName, masterNode, keepliveInterval, zkConnection);
-		masterNodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE,missSlaveName->{
+		ZkDcsNodeManager nodeManager=new ZkDcsNodeManager(appName, clusterName, masterNode, keepliveInterval, zkConnection,2,5);
+		nodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE,missSlaveName->{
 			System.out.println("miss slave:"+missSlaveName);
 		});
-		masterNodeManager.registerNodeEvent(NodeEvent.MISS_MASTER,missSlaveName->{
+		nodeManager.registerNodeEvent(NodeEvent.MISS_MASTER,missSlaveName->{
 			System.out.println("miss master:"+missSlaveName);
 		});
-		masterNodeManager.registerNodeEvent(NodeEvent.BECOME_MASTER,missSlaveName->{
-			System.out.println("成为主节点:"+missSlaveName);
+		nodeManager.registerNodeEvent(NodeEvent.INIT_CLUSTER,master->{
+			System.out.println("集群启动时第一个成为主节点事件:"+master);
 		});
-		masterNodeManager.start();
-		System.out.println("是否为主节点:"+masterNodeManager.isMaster());
+		nodeManager.registerNodeEvent(NodeEvent.BECOME_MASTER,master->{
+			System.out.println("集群丢失master后重新选举成为主节点:"+master);
+		});
+		nodeManager.start();
+		System.out.println("是否为主节点:"+nodeManager.isMaster());
 		Object wait=new ZkDcsNodeManager_2Test();
 		synchronized (wait) {
 			wait.wait();
 		}
-		masterNodeManager.shutdown();
+		nodeManager.shutdown();
 	}
 }
