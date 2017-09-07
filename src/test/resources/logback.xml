@@ -62,6 +62,7 @@
 		ref="file" /> By default, only log at level INFO and above. -->
 	<root level="info">
 		<appender-ref ref="console" />
+		<appender-ref ref="file" />
 	</root>
 
 	<!-- For loggers in the these namespaces, log at all levels. -->

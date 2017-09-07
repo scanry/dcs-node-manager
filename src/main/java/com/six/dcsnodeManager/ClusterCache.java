@@ -1,4 +1,4 @@
-package com.six.dcsnodeManager.api;
+package com.six.dcsnodeManager;
 /**   
 * @author liusong  
 * @date   2017年8月9日 

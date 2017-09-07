@@ -1,12 +1,14 @@
 package com.six.dcsnodeManager;
+
+import java.util.UUID;
+
 /**   
 * @author liusong  
 * @date   2017年8月1日 
 * @email  359852326@qq.com 
 */
-public interface Lock {
+@FunctionalInterface
+public interface NodeEventWatcher {
 
-	void lock();
-	
-	void unlock();
+	void process(UUID uuid);
 }

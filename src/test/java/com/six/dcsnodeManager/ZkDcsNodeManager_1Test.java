@@ -1,9 +1,11 @@
 package com.six.dcsnodeManager;
 
+import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.six.dcsnodeManager.api.DcsNodeManager;
-import com.six.dcsnodeManager.impl.ZkDcsNodeManager;
+import com.six.dcsnodeManager.impl.IgniteDcsNodeManager;
 
 /**
  * @author liusong
@@ -12,48 +14,36 @@ import com.six.dcsnodeManager.impl.ZkDcsNodeManager;
  */
 public class ZkDcsNodeManager_1Test {
 
-	public static void main(String[] args) throws InterruptedException {
-		
-		
-		Node localNode = new Node();
-		localNode.setName("test_1");
-		localNode.setIp("127.0.0.1");
-		localNode.setTrafficPort(8181);
-		DcsNodeManager nodeManager = new ZkDcsNodeManager("crawler", "crawler_cluster",
-				localNode, 2000,"127.0.0.1:2181", 2, 5);
+	final static Logger log = LoggerFactory.getLogger(ZkDcsNodeManager_1Test.class);
+
+	public static void main(String[] args) throws Exception {
+
+		String localHost = "127.0.0.1";
+		int port = 8001;
+
+		List<String> nodeStrs = new ArrayList<>();
+		nodeStrs.add("127.0.0.1:8001");
+		nodeStrs.add("127.0.0.1:8002");
+		DcsNodeManager nodeManager = new IgniteDcsNodeManager(localHost, port, nodeStrs);
 		nodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE, missSlaveName -> {
-			System.out.println("miss slave:" + missSlaveName);
+			System.out.println("missed slave:" + missSlaveName);
 		});
-		nodeManager.registerNodeEvent(NodeEvent.MISS_MASTER, missMasterName -> {
-			System.out.println("miss master:" + missMasterName);
+		nodeManager.registerNodeEvent(NodeEvent.MISS_MASTER, missSlaveName -> {
+			System.out.println("missed master:" + missSlaveName);
 		});
-		nodeManager.registerNodeEvent(NodeEvent.INIT_CLUSTER, master -> {
-			System.out.println("集群启动时第一个成为主节点事件:" + master);
+		nodeManager.registerNodeEvent(NodeEvent.JOIN_SLAVE, missSlaveName -> {
+			System.out.println("joined slave:" + missSlaveName);
 		});
 		nodeManager.registerNodeEvent(NodeEvent.BECOME_MASTER, master -> {
-			System.out.println("集群丢失master后重新选举成为主节点:" + master);
+			System.out.println("选举成为主节点:" + master);
 		});
 		nodeManager.start();
+		System.out.println("本地节点:" + nodeManager.getCurrentNode());
 		System.out.println("是否为主节点:" + nodeManager.isMaster());
-		List<NodeResource> resource=nodeManager.applyNodeResources(1, 5);
-		nodeManager.returnNodeResources(resource);
-		nodeManager.newLock("lock");//获取一把分布式锁
-		nodeManager.registerService(ApplicationService.class, ApplicationService.instance);
-		nodeManager.loolupService(localNode, ApplicationService.class);
-		
-		Object wait = new ZkDcsNodeManager_1Test();
+		Object wait = new ZkDcsNodeManager_2Test();
 		synchronized (wait) {
 			wait.wait();
 		}
+		nodeManager.shutdown();
 	}
-	
-	private static Node getTargetNode(){
-		return null;
-	}
-	
-	static interface ApplicationService{
-		static ApplicationService instance=new ApplicationService() {
-		};
-	}
-
 }
