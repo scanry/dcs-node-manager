@@ -19,14 +19,12 @@ public class ZkDcsNodeManager_2Test {
 		List<String> nodeStrs = new ArrayList<>();
 		nodeStrs.add("127.0.0.1:8001");
 		nodeStrs.add("127.0.0.1:8002");
+		nodeStrs.add("127.0.0.1:8003");
 		DcsNodeManager nodeManager = new IgniteDcsNodeManager(localHost, port, nodeStrs);nodeManager.registerNodeEvent(NodeEvent.MISS_SLAVE,missSlaveName->{
 			System.out.println("missed slave:"+missSlaveName);
 		});
 		nodeManager.registerNodeEvent(NodeEvent.MISS_MASTER,missSlaveName->{
 			System.out.println("missed master:"+missSlaveName);
-		});
-		nodeManager.registerNodeEvent(NodeEvent.JOIN_SLAVE,missSlaveName->{
-			System.out.println("joined slave:"+missSlaveName);
 		});
 		nodeManager.registerNodeEvent(NodeEvent.BECOME_MASTER,master->{
 			System.out.println("选举成为主节点:"+master);

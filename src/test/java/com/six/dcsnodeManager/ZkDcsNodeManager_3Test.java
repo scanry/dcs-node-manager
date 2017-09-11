@@ -2,24 +2,25 @@ package com.six.dcsnodeManager;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.six.dcsnodeManager.impl.IgniteDcsNodeManager;
 
-/**
- * @author liusong
- * @date 2017年8月10日
- * @email 359852326@qq.com
- */
-public class ZkDcsNodeManager_1Test {
+/**   
+* @author liusong  
+* @date   2017年9月7日 
+* @email  359852326@qq.com 
+*/
+public class ZkDcsNodeManager_3Test {
 
 	final static Logger log = LoggerFactory.getLogger(ZkDcsNodeManager_1Test.class);
 
 	public static void main(String[] args) throws Exception {
 
 		String localHost = "127.0.0.1";
-		int port = 8001;
+		int port = 8003;
 
 		List<String> nodeStrs = new ArrayList<>();
 		nodeStrs.add("127.0.0.1:8001");

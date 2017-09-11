@@ -64,7 +64,7 @@ public class IgniteDcsNodeManager implements DcsNodeManager {
 			ignite = Ignition.getOrStart(getIgniteCfg());
 			localClusterNode = ignite.cluster().localNode();
 			electionMaster();
-			listenMasterNodeMiss();
+			listenNodeMiss();
 			listenNodejoin();
 		}
 	}
@@ -103,9 +103,10 @@ public class IgniteDcsNodeManager implements DcsNodeManager {
 	/**
 	 * 监听丢失节点
 	 */
-	private void listenMasterNodeMiss() {
+	private void listenNodeMiss() {
 		ignite.events().remoteListen((UUID, event) -> {
 			UUID missUUID = getNodeUUIDFromEvent(event);
+			log.info("missed node:" + missUUID);
 			// 丢失主节点
 			if (missUUID.equals(masterClusterNode.id())) {
 				log.info("missed master:" + missUUID);
